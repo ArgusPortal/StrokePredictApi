@@ -260,6 +260,7 @@ class AppState:
     total_latency_ms = 0.0
     prediction_total = 0
     prediction_alerts = 0
+    model_version = "unknown"
 
     def __init__(self):
         # usar .get para maior robustez caso SHAP_AVAILABLE não exista por algum motivo
@@ -268,6 +269,16 @@ class AppState:
             self.explainer: Optional['Explainer'] = None
         else:
             self.explainer = None
+
+    def get_model_version(self) -> str:
+        """Return best-effort model version from loaded metadata."""
+        if isinstance(self.metadata, dict):
+            model_info = self.metadata.get("model_info")
+            if isinstance(model_info, dict) and model_info.get("version"):
+                return str(model_info["version"])
+            if self.metadata.get("version"):
+                return str(self.metadata["version"])
+        return self.model_version
 
 state = AppState()
 
@@ -299,10 +310,11 @@ async def lifespan(app: FastAPI):
         if metadata_file:
             with metadata_file.open('r', encoding='utf-8') as f:
                 state.metadata = json.load(f)
-            version = state.metadata.get('model_info', {}).get('version', 'unknown') if state.metadata else 'unknown'
-            logger.info(f"Model v{version} loaded successfully (metadata: {metadata_file.name})")
         else:
             logger.warning(f"Model metadata not found for {model_file.name}")
+            state.metadata = None
+        state.model_version = state.get_model_version()
+        logger.info(f"Model v{state.model_version} loaded successfully (metadata: {metadata_file.name if metadata_file else 'missing'})")
         
         if CALIBRATION_META_PATH.exists():
             try:
@@ -622,11 +634,12 @@ async def health_check():
     """Health check endpoint"""
     
     model_loaded = state.model is not None
+    model_version = state.get_model_version()
     
     return {
         "status": "healthy" if model_loaded else "unhealthy",
         "model_loaded": model_loaded,
-        "model_version": state.metadata['model_info']['version'] if state.metadata else "unknown",
+        "model_version": model_version,
         "shap_available": SHAP_AVAILABLE and state.explainer is not None,
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "uptime_requests": state.request_count
@@ -645,7 +658,7 @@ async def get_metrics():
         "total_errors": state.error_count,
         "error_rate": error_rate,
         "average_latency_ms": avg_latency,
-        "model_version": state.metadata['model_info']['version'] if state.metadata else "unknown"
+        "model_version": state.get_model_version()
     }
 
 
@@ -717,7 +730,7 @@ async def predict_stroke_risk(
             risk_tier=risk_tier,
             confidence_interval_95=None,
             explanation=explanation,
-            model_version=state.metadata['model_info']['version'] if state.metadata else "unknown",
+            model_version=state.get_model_version(),
             latency_ms=round(latency_ms, 2),
             alert_flag=alert_flag,
             threshold_used=OP_THRESHOLD,
@@ -809,7 +822,7 @@ async def batch_predict(
         return {
             'predictions': responses,
             'batch_size': len(patients),
-            'model_version': state.metadata['model_info']['version'] if state.metadata else "unknown",
+            'model_version': state.get_model_version(),
             'calibration_version': calibration_version,
             'total_latency_ms': round(latency_ms, 2),
             'avg_latency_per_patient_ms': round(latency_ms / len(patients), 2)
