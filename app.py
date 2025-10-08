@@ -28,15 +28,16 @@ from contextlib import asynccontextmanager
 import sys
 import os
 from prometheus_client import Counter, Gauge, Histogram, REGISTRY, make_asgi_app
-from src.feature_engineering import engineer_medical_features
 
-# Advanced imports (optional)
+# Tentar importar o módulo de engenharia de features; se falhar, usar passthrough para evitar crash no deploy
 try:
-    import shap
-    SHAP_AVAILABLE = True
-except ImportError:
-    SHAP_AVAILABLE = False
-    print("WARNING: SHAP not available - explanations disabled")
+    from src.feature_engineering import engineer_medical_features  # type: ignore
+except Exception as e:
+    # Import pode falhar no ambiente de deploy se o pacote src não estiver resolvido.
+    # Logamos e usamos uma função substituta que devolve o DataFrame sem alterações.
+    print(f"WARNING: Could not import src.feature_engineering: {e}. Using passthrough engineer function.")
+    def engineer_medical_features(df: pd.DataFrame) -> pd.DataFrame:
+        return df
 
 # ========== CONFIGURATION ==========
 
@@ -831,18 +832,20 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 if __name__ == "__main__":
     import uvicorn
-    
-    print("Starting Stroke Prediction API (Development Mode)...")
-    print(f"API Docs: http://localhost:8000/docs")
-    print(f"Health Check: http://localhost:8000/health")
-    print(f"Ping: http://localhost:8000/ping")
+    # Bind à porta esperada pelo Render (env PORT) ou API_PORT como fallback
+    port = int(os.environ.get("PORT", os.environ.get("API_PORT", "8000")))
+    host = "0.0.0.0"
+    reload_flag = os.environ.get("RELOAD", "false").lower() == "true"
+    print(f"Starting Stroke Prediction API (Development Mode)...")
+    print(f"API Docs: http://{host}:{port}/docs")
+    print(f"Health Check: http://{host}:{port}/health")
+    print(f"Ping: http://{host}:{port}/ping")
     print("\nPress Ctrl+C to stop the server")
-    
     uvicorn.run(
-        "fastapi_app:app",
-        host="127.0.0.1",  # Changed from 0.0.0.0 for better Windows compatibility
-        port=8000,
-        reload=True,
+        "app:app",
+        host=host,
+        port=port,
+        reload=reload_flag,
         log_level="info",
         access_log=True
     )
