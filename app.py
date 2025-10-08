@@ -496,6 +496,10 @@ def _prepare_features(raw_df: pd.DataFrame) -> pd.DataFrame:
         if missing:
             raise ValueError(f"Required features missing after engineering: {missing}")
         engineered_df = engineered_df.loc[:, expected_columns]
+        
+        # Ensure we're returning a DataFrame even if only one column was selected
+        if isinstance(engineered_df, pd.Series):
+            engineered_df = engineered_df.to_frame()
 
     return engineered_df
 
