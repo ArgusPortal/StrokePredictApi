@@ -29,6 +29,14 @@ import sys
 import os
 from prometheus_client import Counter, Gauge, Histogram, REGISTRY, make_asgi_app
 
+# Check if SHAP is available
+try:
+    import shap
+    SHAP_AVAILABLE = True
+except ImportError:
+    SHAP_AVAILABLE = False
+    print("SHAP not available. Explanations will be disabled.")
+
 # Tentar importar o módulo de engenharia de features; se falhar, usar passthrough para evitar crash no deploy
 try:
     from src.feature_engineering import engineer_medical_features  # type: ignore

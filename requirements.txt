@@ -22,4 +22,4 @@ python-dotenv==1.0.0
 
 # Optional: Explicabilidade (SHAP)
 # Descomente se precisar de SHAP explanations
-# shap==0.43.0
+ shap==0.43.0
