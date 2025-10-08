@@ -33,9 +33,9 @@ from prometheus_client import Counter, Gauge, Histogram, REGISTRY, make_asgi_app
 try:
     import shap
     SHAP_AVAILABLE = True
-except ImportError:
+except Exception as exc:  # Catch binary incompatibility errors as well
     SHAP_AVAILABLE = False
-    print("SHAP not available. Explanations will be disabled.")
+    print(f"SHAP not available ({exc}). Explanations will be disabled.")
 
 # Tentar importar o módulo de engenharia de features; se falhar, usar passthrough para evitar crash no deploy
 try:
