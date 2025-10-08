@@ -254,7 +254,8 @@ class AppState:
     prediction_alerts = 0
 
     def __init__(self):
-        if SHAP_AVAILABLE:
+        # usar .get para maior robustez caso SHAP_AVAILABLE não exista por algum motivo
+        if globals().get("SHAP_AVAILABLE", False):
             from shap import Explainer
             self.explainer: Optional['Explainer'] = None
         else:
